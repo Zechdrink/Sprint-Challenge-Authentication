@@ -1,9 +1,10 @@
 const axios = require('axios');
-const router = require('express').Router()
 const bcrypt = require('bcryptjs');
-const db = require('../database/dbConfig');
+const Users = require('./routesDb');
+const jwt = require('jsonwebtoken');
 
 const { authenticate } = require('../auth/authenticate');
+const secret = "I am  seccrrett";
 
 module.exports = server => {
   server.post('/api/register', register);
@@ -20,7 +21,7 @@ function register(req, res) {
     const hash = bcrypt.hashSync(user.password, 10);
     user.password = hash; 
 
-    add(user)
+    Users.add(user)
     .then(saved => {
       res.status(201).json(saved)
     })
@@ -31,6 +32,22 @@ function register(req, res) {
 
 function login(req, res) {
   // implement user login
+  let { username, password } = req.body;
+
+  Users.findBy({ username })
+    .first()
+    .then(user => {
+      if (user && bcrypt.compareSync(password, user.password)) {
+        const token = generateToken(user);
+
+        res.status(200).json({ token });
+      } else {
+        res.status(401).json({ message: 'Invalid Credentials' });
+      }
+    })
+    .catch(error => {
+      res.status(500).json(error);
+    });
 }
 
 function getJokes(req, res) {
@@ -48,16 +65,17 @@ function getJokes(req, res) {
     });
 }
 
-async function add(user) {
-  const [id] = await db('users').insert(user);
+function generateToken(user){
+  
+  const payload = {
+    subject: user.id,
+    username: user.username,
+  }
 
-  return findById(id);
+  const options = {
+    expiresIn: '1d',
+  }
+
+  return jwt.sign(payload, secret, options)
 }
-
-function findById(id) {
-  return db('users')
-    .where({ id })
-    .first();
-}
-
 
